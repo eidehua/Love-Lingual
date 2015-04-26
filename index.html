@@ -27,11 +27,28 @@
 
     <script src="js/jquery-2.1.3.min.js"></script>
     <script src="bootstrap-3.3.4-dist/js/bootstrap.js"></script>
+    <?php include 'microsoft-translate.php';?>
+
     <script>
       function translate1(){
         $('#translation').collapse('show');
         var translatee = $('#translatee').val();
-        $('#Translated-Message').text(translatee);
+        if (translatee.length == 0) {
+            //document.getElementById("txtHint").innerHTML = "";
+            $('#Translated-Message').text("Enter Something!");
+            return;
+        } else {
+            var xmlhttp = new XMLHttpRequest();
+            xmlhttp.onreadystatechange = function() {
+                if (xmlhttp.readyState == 4 && xmlhttp.status == 200) {
+                    document.getElementById("Translated-Message").innerHTML = xmlhttp.responseText;
+                    //$('#Translated-Message').text(xmlhttp.responseText);
+
+                }
+            }
+            xmlhttp.open("GET", "microsoft-translate.php?translatee=" + translatee + "&lang=en", true);
+            xmlhttp.send();
+        }
       }
     </script>
   </head>
