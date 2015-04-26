@@ -1,6 +1,7 @@
 
 <?php
-header("Access-Control-Allow-Origin: http://localhost:8100/");
+//header("Access-Control-Allow-Origin: http://localhost:8100");
+header("Access-Control-Allow-Origin: http://eidehua.github.io/");
 class AccessTokenAuthentication {
 /*
 * Get the access token.
