@@ -30,6 +30,7 @@
     <?php include 'microsoft-translate.php';?>
 
     <script>
+      results = ["Translation 1", "Translation 2 Buddy Boy", "Hi I am smart","Yo wat up foo"," Lol","Dolololo","Yobobobobobo","Hekekekeke"]
       function translate1(){
         $('#translation').collapse('show');
         var translatee = $('#translatee').val();
@@ -43,12 +44,25 @@
                 if (xmlhttp.readyState == 4 && xmlhttp.status == 200) {
                     document.getElementById("Translated-Message").innerHTML = xmlhttp.responseText;
                     //$('#Translated-Message').text(xmlhttp.responseText);
-
+                    results = xmlhttp.responseText.trim().split(" ")
+                    displayResults(results);
                 }
             }
 
             xmlhttp.open("GET", "http://web.engr.illinois.edu/~exue2/microsoft-translate.php?translatee=" + translatee + "&lang=en", true);
             xmlhttp.send();
+        }
+      }
+    </script>
+    <script>
+      function displayResults(results){
+        $('#results').empty(); //removes what is in this div first (previous translation)
+        for(var i = 0; i < results.length; i++){
+          $('<div>').addClass('list card')
+            .append(
+              $('<div>').addClass('item item-divider').text('Result '+ i),
+              $('<div>').addClass('item item-body').text(results[i])
+            ).appendTo('#results')
         }
       }
     </script>
