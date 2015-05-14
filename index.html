@@ -9,6 +9,7 @@
     <link href="css/style.css" rel="stylesheet">
     <link href="bootstrap-3.3.4-dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="bootstrap-3.3.4-dist/css/bootstrap-theme.min.css" rel="stylesheet">
+    <link href="css/vote.css" rel="stylesheet">
 
     <!-- IF using Sass (run gulp sass first), then uncomment below and remove the CSS includes above
     <link href="css/ionic.app.css" rel="stylesheet">
@@ -27,7 +28,9 @@
 
     <script src="js/jquery-2.1.3.min.js"></script>
     <script src="bootstrap-3.3.4-dist/js/bootstrap.js"></script>
-    <?php include 'microsoft-translate.php';?>
+    <script src="js/vote.js"></script>
+
+    <!--<?php include 'microsoft-translate.php';?>-->
 
     <script>
       results = ["Translation 1", "Translation 2 Buddy Boy", "Hi I am smart","Yo wat up foo"," Lol","Dolololo","Yobobobobobo","Hekekekeke"]
@@ -42,10 +45,14 @@
             var xmlhttp = new XMLHttpRequest();
             xmlhttp.onreadystatechange = function() {
                 if (xmlhttp.readyState == 4 && xmlhttp.status == 200) {
-                    document.getElementById("Translated-Message").innerHTML = xmlhttp.responseText;
+                    var query = xmlhttp.responseText.trim();
+                    //query = "Jiaxin is a good man"; //temporary test
+
+                    document.getElementById("Translated-Message").innerHTML = query;
                     //$('#Translated-Message').text(xmlhttp.responseText);
-                    results = xmlhttp.responseText.trim().split(" ")
-                    displayResults(results);
+                    translationToDB(query);
+                    //results = xmlhttp.responseText.trim().split(" ")
+                    //displayResults(results);
                 }
             }
 
@@ -53,19 +60,156 @@
             xmlhttp.send();
         }
       }
-    </script>
-    <script>
-      function displayResults(results){
-        $('#results').empty(); //removes what is in this div first (previous translation)
-        for(var i = 0; i < results.length; i++){
-          $('<div>').addClass('list card')
-            .append(
-              $('<div>').addClass('item item-divider').text('Result '+ i),
-              $('<div>').addClass('item item-body').text(results[i])
-            ).appendTo('#results')
+
+      //Takes our bing translation as the query to our DB
+      function translationToDB(query){
+        var xmlhttp = new XMLHttpRequest();
+        var params = "query="+query;
+        xmlhttp.open("POST", "http://web.engr.illinois.edu/~jlin61/lovelingual/getCache.php", true);
+
+        xmlhttp.setRequestHeader("Content-type", "application/x-www-form-urlencoded");
+
+        xmlhttp.onreadystatechange = function() {
+            if (xmlhttp.readyState == 4 && xmlhttp.status == 200) {
+                //$('#Translated-Message').text(xmlhttp.responseText);
+                //alert(xmlhttp.responseText);
+                var json_result =JSON.parse(xmlhttp.responseText);
+                //alert(xmlhttp.responseText);
+                displayResults(json_result,query);
+            }
         }
+
+        xmlhttp.send(params);
       }
     </script>
+    <script>
+      function displayResults(json, query){
+        //json format: {query: [ {result: {up,down,score}}, {},... ]}
+        //alert(query); //alert(json);
+        var results = json[query];
+        //alert(results); //alert(results.length);
+        $('#results').empty(); //removes what is in this div first (previous translation)
+        //alert(results.length);
+        if(results.length == 0){
+          //The query is not in the DB. Need to call ES with our translation.
+          //alert("hi");
+          elasticSearchToJSON(query);
+          return;
+        }
+        for(var i = 0; i < results.length; i++){
+          var dict = results[i];
+          //dict = { "Jiaxin is handsome": {up,down,score}}
+          for (var similar in dict){
+            var data = dict[similar]; //data = {"upvoteC":2,"downvoteC":1,"rankingScore":0.9}
+
+            var score = data["upvoteC"]-data["downvoteC"];
+
+            var vote = $('<div>').addClass('vote circle');
+            vote.attr('style',"display:inline-block");
+            var up = $('<div>').addClass('increment up');
+            up.attr('id','up'+i);
+            var down=$('<div>').addClass('increment down');
+            down.attr('id','down'+i);
+            var count = $('<div>').addClass('count');
+            count.attr('id','count'+i);
+            count.text(score);
+
+            vote.append(up,down,count);
+
+            var card_body = $('<div>').addClass('');
+            card_body.attr('style', "display:inline-block;");
+            card_body.text(similar);  //displays the ES relevant doc that is similar to query
+            card_body.append('<br />');
+            card_body.append('<br />');
+            card_body.append('<br />');
+            card_body.append('<br />');
+            card_body.attr('id', 'relevantSentence'+i);
+
+            var title = $('<div>').addClass('item item-divider');
+            title.attr('id','data'+i);
+            title.attr('upvotes', data["upvoteC"]);
+            title.attr('downvotes',data["downvoteC"]);
+            title.attr('confidence',data["rankingScore"]);
+            title.text('Upvotes: '+title.attr('upvotes')
+              +' Downvotes: '+ title.attr('downvotes') + ' Confidence Score: ' + title.attr('confidence'))
+            title.attr('votedOn',"false")
+
+            var card = $('<div>').addClass('list card');
+            card.append(
+                title,
+                vote,
+                card_body
+              );
+              card.appendTo('#results');
+          }
+        }
+      }
+
+      //Changing query (our translation) into an array, where each element is a dict: //dict = { "Jiaxin is handsome": {up,down,score}}
+      function elasticSearchToJSON(query){
+        //call es with a POST REQUEST
+        var xmlhttp = new XMLHttpRequest();
+        //{"query": {"multi_match": {"query": "She is crazy hot", "type": "most_fields", "minimum_should_match": "30%", "fields": [  "body_bm25" ]  }}}
+        //var params = 'source={"query": {"multi_match": {"query": "' + query + '", "type": "most_fields", "minimum_should_match": "30%", "fields": [ "body_bm25" ]  }}}';
+        var params = '{"query":{"multi_match":{"query":"'+ query+ '","type":"most_fields","minimum_should_match":"30%","fields":["body_bm25"]}}}';
+        //{"query":{"match":{"body": "' + query + '"}}}
+        //var url = 'http://104.43.254.47:9200/love_lingual_index/_search?size=20&source={"query": {"multi_match": {"query": "She is crazy hot", "type": "most_fields", "minimum_should_match": "30%", "fields": [  "body_bm25" ]  }}}';
+        //alert(url);
+        var url = 'http://104.43.254.47:9200/love_lingual_index/_search?size=20';
+        xmlhttp.open("POST", url, true);
+        xmlhttp.setRequestHeader("Content-type", "application/x-www-form-urlencoded");
+
+        xmlhttp.onreadystatechange = function() {
+            if (xmlhttp.readyState == 4 && xmlhttp.status == 200) {
+                //alert(xmlhttp.responseText);
+                //$('#Translated-Message').text(xmlhttp.responseText);
+                //results = xmlhttp.responseText.trim().split(" ")
+                var json_results = JSON.parse(xmlhttp.responseText); //Elastic Search's JSON
+                var hits = json_results["hits"]["hits"]; //outer hits key has a dictionary as value. The dictionary has an inner hits as a key, which has an array as the value
+
+                var new_results = {};
+                new_results[query] = [];
+                //alert(JSON.stringify(hits));
+                for (var i=0; i< hits.length; i++){
+                  //alert(JSON.stringify(hits[i]));
+                  //each hit is a dictionary. All we care about is the _source->body
+                  var similar = hits[i]["_source"]["body"];
+                  new_results[query].push(similar);
+                }
+                //Now push our es results into the DB
+                esToDB(new_results, query);
+            }
+        }
+        xmlhttp.send(params);
+        //fin
+      }
+      function esToDB(results, query){
+        var jsonStr = JSON.stringify(results);
+        //alert(jsonStr);
+        var xmlhttp = new XMLHttpRequest();
+        var params = "json="+jsonStr;
+        xmlhttp.open("POST", "http://web.engr.illinois.edu/~jlin61/lovelingual/insertCache.php", true);
+        xmlhttp.setRequestHeader("Content-type", "application/x-www-form-urlencoded");
+
+        xmlhttp.onreadystatechange = function() {
+            if (xmlhttp.readyState == 4 && xmlhttp.status == 200) {
+                //$('#Translated-Message').text(xmlhttp.responseText);
+                //alert(xmlhttp.responseText);
+                var json_result =JSON.parse(xmlhttp.responseText);
+                //alert(xmlhttp.responseText);
+
+                displayResults(json_result,query);
+            }
+        }
+        xmlhttp.send(params);
+      }
+    </script>
+<!--
+    <div class="vote circle" style="display:inline-block">
+      <div id="up0" class="increment up"></div>
+      <div id="down0" class="increment down"></div>
+      <div id="count0" class="count">0</div>
+    </div> -->
   </head>
   <body ng-app="starter">
     <!--
