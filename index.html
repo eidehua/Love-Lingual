@@ -132,7 +132,8 @@
             title.attr('confidence',data["rankingScore"]);
             title.text('Upvotes: '+title.attr('upvotes')
               +' Downvotes: '+ title.attr('downvotes') + ' Confidence Score: ' + title.attr('confidence'))
-            title.attr('votedOn',"false")
+            title.attr('votedUp',"false");
+            title.attr('votedDown','false');
 
             var card = $('<div>').addClass('list card');
             card.append(
